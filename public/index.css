@@ -3,6 +3,8 @@
 :root {
   --neutral-950: #0a0a0a;
   --neutral-900: #171717;
+  --neutral-600: #525252;
+  --indigo-900: #312c85;
 }
 
 * {
@@ -32,11 +34,21 @@ main {
 
 button,
 input {
-  width: 10rem;
   height: 3rem;
+  width: 10rem;
   border: none;
   border-radius: 0.2rem;
   cursor: pointer;
+}
+
+input {
+  width: 16rem;
+  padding: 0 1rem;
+}
+
+button {
+  background-color: var(--indigo-900);
+  font-weight: 600;
 }
 
 .wrapper {
@@ -44,29 +56,13 @@ input {
 }
 
 .actions {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1rem;
   margin-top: 2rem;
 }
 
-.action {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: var(--neutral-900);
-  height: 10rem;
-}
-
-.action__join {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-}
-
-.action__join input {
-  background-color: var(--neutral-950);
-  font-size: 1rem;
-  padding: 0 1rem;
+.userid {
+  color: var(--neutral-600);
+  border: 2px solid var(--neutral-600);
+  padding: 0.5rem;
+  margin: 0 0.5rem;
+  border-radius: 0.2rem;
 }
