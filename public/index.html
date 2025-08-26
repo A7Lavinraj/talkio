@@ -15,8 +15,6 @@
       </header>
 
       <main>
-        <p>Welcome to <strong>Talkio</strong>&period;</p>
-        <br />
         <p>Your user ID <span class="userid"></span></p>
 
         <div class="actions">
@@ -28,6 +26,15 @@
           <button type="button" class="action__button">Connect</button>
         </div>
       </main>
+
+      <div class="streams__wrapper">
+        <h2>Streams</h2>
+        <br />
+        <div class="streams">
+          <video autoplay playsinline class="stream__local"></video>
+          <video autoplay playsinline class="stream__remote"></video>
+        </div>
+      </div>
     </div>
 
     <script src="index.js"></script>
