@@ -31,6 +31,7 @@ var (
 
 func generateNumericID() string {
 	n, _ := rand.Int(rand.Reader, big.NewInt(999999))
+	fmt.Printf("DEBUG: %06d", n)
 	return fmt.Sprintf("%06d", n)
 }
 

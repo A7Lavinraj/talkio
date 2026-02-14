@@ -1,4 +1,5 @@
-const SOCKET_CONNECTION_URL = "ws://localhost:8080/ws";
+const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+const SOCKET_CONNECTION_URL = `${protocol}//${window.location.host}/ws`;
 
 const rtc = new RTCPeerConnection({
   iceCandidatePoolSize: 10,
