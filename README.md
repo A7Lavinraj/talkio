@@ -1,6 +1,6 @@
 # Talkio
 
-A web application based on **[WebRTC](https://en.wikipedia.org/wiki/WebRTC)**
+web application based on **[WebRTC](https://en.wikipedia.org/wiki/WebRTC)**
 
 > [!NOTE]
 > This project is for learning purposes.
@@ -20,6 +20,6 @@ go run main.go
 
 My understandings so far are available in [DOCS.md](https://github.com/A7Lavinraj/talkio/blob/main/DOCS.md)
 
-## Raise pull requests if you want to learn and improve this project!
+## Raise pull requests if you want to learn and improve this project
 
 I'll be happy to merge you requests!!!
