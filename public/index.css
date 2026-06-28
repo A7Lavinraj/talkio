@@ -14,17 +14,20 @@
   color-scheme: dark;
 }
 
-html {
-  font-family: "Roboto", sans-serif;
-}
-
+html,
 body {
+  height: 100%;
+  font-family: "Roboto", sans-serif;
   background-color: var(--neutral-950);
+  overflow: hidden;
 }
 
-h1 {
-  margin-block: 0.67em;
-  font-size: 2em;
+.wrapper {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  gap: 1rem;
 }
 
 nav {
@@ -33,58 +36,83 @@ nav {
   height: 3.5rem;
 }
 
+h1 {
+  font-size: 2em;
+}
+
 main {
-  margin-top: 2rem;
+  text-align: center;
 }
 
-button,
-input {
-  height: 3rem;
-  width: 10rem;
-  border: none;
-  border-radius: 0.2rem;
-  cursor: pointer;
-}
-
-input {
-  width: 16rem;
-  padding: 0 1rem;
-}
-
-button {
-  background-color: var(--indigo-900);
-  font-weight: 600;
-}
-
-.wrapper {
-  margin: 1rem;
-}
-
-.actions {
-  margin-top: 2rem;
+main p {
+  margin-bottom: 0.5rem;
 }
 
 .userid {
   color: var(--neutral-600);
   border: 2px solid var(--neutral-600);
   padding: 0.5rem;
-  margin: 0 0.5rem;
+  margin-left: 0.5rem;
   border-radius: 0.2rem;
 }
 
 .streams__wrapper {
-  margin: 2rem 0;
+  flex: 1;
+  min-height: 0;
 }
 
 .streams {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.streams--active {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  border-top: 2px solid var(--neutral-600);
-  padding: 1rem;
-  gap: 1rem;
+}
+
+.streams:not(.streams--active) .stream__remote {
+  display: none;
+}
+
+.streams:not(.streams--active) .stream__local {
+  max-width: 50%;
 }
 
 .streams video {
   width: 100%;
+  height: 100%;
   border-radius: 1rem;
+  object-fit: cover;
+}
+
+.stream__info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  pre {
+    margin-top: 1rem;
+  }
+}
+
+.error-message {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+
+  h2 {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+  }
+
+  p {
+    color: var(--neutral-600);
+  }
 }

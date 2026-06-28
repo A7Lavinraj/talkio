@@ -1,7 +1,7 @@
-const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-const SOCKET_CONNECTION_URL = `${protocol}//${window.location.host}/ws`;
+const PROTOCOL = window.location.protocol === "https:" ? "wss:" : "ws:";
+const SOCKET_CONNECTION_URL = `${PROTOCOL}//${window.location.host}/ws`;
 
-const rtc = new RTCPeerConnection({
+const RTC_CONFIG = {
   iceCandidatePoolSize: 10,
   iceServers: [
     {
@@ -13,132 +13,166 @@ const rtc = new RTCPeerConnection({
       credential: "pass",
     },
   ],
-});
+};
 
-class WebSocketSingleton {
-  constructor(url) {
-    if (WebSocketSingleton.instance) return WebSocketSingleton.instance;
+let rtc;
+let socket, peerId;
+let localStream, remoteStream;
+let ready = false;
+let rejected = false;
+let messageQueue = [];
 
-    this.url = url;
-    this.socket = new WebSocket(url);
-    if (!this.socket) throw new Error("Unable to create Socket");
-
-    this.peerId = null;
-
-    this.socket.onopen = () => {
-      console.log(`Socket connected to ${this.url}`);
-    };
-
-    this.socket.onmessage = async (e) => {
-      console.log("Socket receive message: ", e.data);
-      const prasedData = JSON.parse(e.data);
-
-      if (prasedData.type === "INITIAL_CONNECTION") {
-        document.querySelector(".userid").textContent = prasedData.data;
-      } else if (prasedData.type === "PEER_CONNECTION_REQUEST") {
-        this.peerId = prasedData.userId;
-
-        const offer = prasedData.data;
-        await rtc.setRemoteDescription(offer);
-
-        const answer = await rtc.createAnswer();
-        await rtc.setLocalDescription(answer);
-
-        this.send({
-          type: "PEER_CONNECTION_RESPONSE",
-          userId: this.peerId,
-          data: answer,
-        });
-      } else if (prasedData.type === "PEER_CONNECTION_RESPONSE") {
-        this.peerId = prasedData.userId;
-
-        const answer = prasedData.data;
-        if (!rtc.currentRemoteDescription) {
-          await rtc.setRemoteDescription(answer);
-        }
-      } else if (prasedData.type === "ICE_CANDIDATE") {
-        try {
-          await rtc.addIceCandidate(prasedData.data);
-        } catch (err) {
-          console.error("Error adding ICE candidate:", err);
-        }
-      }
-    };
-
-    this.socket.onclose = () => console.log("Socket closed");
-    this.socket.onerror = () => {
-      console.log("Socket error occurs, closing connection");
-      this.socket.close();
-    };
-
-    WebSocketSingleton.instance = this;
+function createRTC() {
+  if (rtc) {
+    rtc.onicecandidate = null;
+    rtc.oniceconnectionstatechange = null;
+    rtc.ontrack = null;
+    rtc.close();
   }
 
-  send(data) {
-    if (this.socket.readyState === WebSocket.OPEN) {
-      this.socket.send(JSON.stringify(data));
-    } else {
-      throw new Error("WebSocket is not open");
+  rtc = new RTCPeerConnection(RTC_CONFIG);
+
+  rtc.onicecandidate = (event) => {
+    if (event.candidate && peerId) {
+      socket.send(
+        JSON.stringify({
+          type: "ICE_CANDIDATE",
+          userId: peerId,
+          data: event.candidate,
+        }),
+      );
     }
+  };
+
+  rtc.oniceconnectionstatechange = () => {
+    console.log("ICE state:", rtc.iceConnectionState);
+  };
+
+  const remoteVideoElement = document.querySelector(".stream__remote");
+
+  remoteStream = new MediaStream();
+  remoteVideoElement.srcObject = remoteStream;
+
+  rtc.ontrack = (event) => {
+    event.streams[0].getTracks().forEach((track) => {
+      remoteStream.addTrack(track);
+    });
+    remoteVideoElement.hidden = false;
+    document.querySelector(".streams").classList.add("streams--active");
+  };
+
+  if (localStream) {
+    localStream.getTracks().forEach((track) => {
+      rtc.addTrack(track, localStream);
+    });
   }
 }
 
-let localStream, remoteStream;
-
 window.addEventListener("load", async () => {
   try {
-    const ws = new WebSocketSingleton(SOCKET_CONNECTION_URL);
+    socket = new WebSocket(SOCKET_CONNECTION_URL);
 
-    rtc.onicecandidate = (event) => {
-      if (event.candidate && ws.peerId) {
-        ws.send({
-          type: "ICE_CANDIDATE",
-          userId: ws.peerId,
-          data: event.candidate,
-        });
-      }
-    };
+    socket.onopen = () => console.log("Socket connected");
 
-    rtc.oniceconnectionstatechange = () => {
-      console.log("ICE state:", rtc.iceConnectionState);
-    };
-
-    document
-      .querySelector(".action__button")
-      .addEventListener("click", async () => {
-        const targetId = document.querySelector(".action__input").value.trim();
-        if (!targetId) return alert("Enter a target user id");
-
-        ws.peerId = targetId;
+    async function handleMessage(data) {
+      if (data.type === "START_CALL") {
+        peerId = data.data;
 
         const offer = await rtc.createOffer();
         await rtc.setLocalDescription(offer);
 
-        ws.send({
-          type: "PEER_CONNECTION_REQUEST",
-          data: offer,
-          userId: targetId,
-        });
-      });
+        socket.send(
+          JSON.stringify({
+            type: "PEER_CONNECTION_REQUEST",
+            userId: peerId,
+            data: offer,
+          }),
+        );
+      } else if (data.type === "PEER_CONNECTION_REQUEST") {
+        peerId = data.userId;
+
+        await rtc.setRemoteDescription(data.data);
+
+        const answer = await rtc.createAnswer();
+        await rtc.setLocalDescription(answer);
+
+        socket.send(
+          JSON.stringify({
+            type: "PEER_CONNECTION_RESPONSE",
+            userId: peerId,
+            data: answer,
+          }),
+        );
+      } else if (data.type === "PEER_CONNECTION_RESPONSE") {
+        peerId = data.userId;
+
+        if (!rtc.currentRemoteDescription) {
+          await rtc.setRemoteDescription(data.data);
+        }
+      } else if (data.type === "ICE_CANDIDATE") {
+        try {
+          await rtc.addIceCandidate(data.data);
+        } catch (err) {
+          console.error("Error adding ICE candidate:", err);
+        }
+      } else if (data.type === "PEER_DISCONNECTED") {
+        peerId = null;
+        document.querySelector(".stream__remote").hidden = true;
+        document.querySelector(".streams").classList.remove("streams--active");
+        createRTC();
+      }
+    }
+
+    socket.onmessage = async (e) => {
+      const data = JSON.parse(e.data);
+
+      if (data.type === "ERROR") {
+        rejected = true;
+        document.querySelector(".streams").hidden = true;
+        document.querySelector(".error-message").hidden = false;
+        if (localStream) {
+          localStream.getTracks().forEach((t) => t.stop());
+        }
+        return;
+      }
+
+      if (!ready) {
+        messageQueue.push(data);
+        return;
+      }
+
+      await handleMessage(data);
+    };
+
+    socket.onclose = () => console.log("Socket closed");
+    socket.onerror = () => {
+      console.log("Socket error, closing connection");
+      socket.close();
+    };
+
+    if (rejected) return;
 
     localStream = await navigator.mediaDevices.getUserMedia({
       video: true,
-      audio: false,
+      audio: true,
     });
-    remoteStream = new MediaStream();
 
-    document.querySelector(".stream__local").srcObject = localStream;
-    document.querySelector(".stream__remote").srcObject = remoteStream;
+    if (rejected) {
+      localStream.getTracks().forEach((t) => t.stop());
+      return;
+    }
 
-    localStream
-      .getTracks()
-      .forEach((track) => rtc.addTrack(track, localStream));
+    const localVideoElement = document.querySelector(".stream__local");
+    localVideoElement.srcObject = localStream;
+    localVideoElement.hidden = false;
 
-    rtc.ontrack = (event) => {
-      event.streams[0].getTracks().forEach((track) => {
-        remoteStream.addTrack(track);
-      });
-    };
+    createRTC();
+
+    ready = true;
+    for (const msg of messageQueue) {
+      await handleMessage(msg);
+    }
+    messageQueue = [];
   } catch (err) {
     console.error(err);
     alert(err);

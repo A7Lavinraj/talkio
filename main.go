@@ -1,11 +1,9 @@
 package main
 
 import (
-	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"log"
-	"math/big"
 	"net/http"
 	"os"
 	"sync"
@@ -14,8 +12,21 @@ import (
 )
 
 type Client struct {
-	UserId string
-	conn   *websocket.Conn
+	slot    int
+	conn    *websocket.Conn
+	writeMu sync.Mutex
+}
+
+func (c *Client) writeJSON(v any) error {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+	return c.conn.WriteJSON(v)
+}
+
+func (c *Client) writeMessage(messageType int, data []byte) error {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+	return c.conn.WriteMessage(messageType, data)
 }
 
 type Message struct {
@@ -25,30 +36,48 @@ type Message struct {
 }
 
 var (
-	ClientConns   = map[string]*Client{}
-	clientConnsMu sync.RWMutex
+	clients        [2]*Client
+	mu             sync.Mutex
+	connectedCount int
 )
 
-func generateNumericID() string {
-	n, _ := rand.Int(rand.Reader, big.NewInt(999999))
-	fmt.Printf("DEBUG: %06d", n)
-	return fmt.Sprintf("%06d", n)
-}
-
 func (c *Client) run() {
+	userID := fmt.Sprintf("user%d", c.slot)
+	partnerID := fmt.Sprintf("user%d", 1-c.slot)
+
 	defer func() {
+		mu.Lock()
+		clients[c.slot] = nil
+		connectedCount--
+		partner := clients[1-c.slot]
+		mu.Unlock()
+		if partner != nil {
+			partner.writeJSON(Message{Type: "PEER_DISCONNECTED"})
+		}
 		c.conn.Close()
-		clientConnsMu.Lock()
-		delete(ClientConns, c.UserId)
-		clientConnsMu.Unlock()
 	}()
 
-	clientConnsMu.Lock()
-	ClientConns[c.UserId] = c
-	clientConnsMu.Unlock()
+	// Check if both peers are now present. If this is slot 1 joining,
+	// tell slot 0 (the initiator) to start the call, passing slot 1's ID.
+	// If this is slot 0 and slot 1 was already waiting, tell slot 0 to start.
+	mu.Lock()
+	partner := clients[1-c.slot]
+	mu.Unlock()
 
-	if err := c.conn.WriteJSON(Message{Type: "INITIAL_CONNECTION", Data: json.RawMessage([]byte(c.UserId))}); err != nil {
-		log.Println("Unable to send initial message")
+	if partner != nil {
+		// Both peers are connected. The initiator is always slot 0.
+		// Tell slot 0 to kick off the offer, with slot 1's ID as the target.
+		initiator := clients[0]
+		peerOfInitiator := fmt.Sprintf("user%d", 1) // always user1
+		if c.slot == 1 {
+			// This client just joined as slot 1 — tell slot 0 to start.
+			peerIDBytes, _ := json.Marshal(peerOfInitiator)
+			initiator.writeJSON(Message{Type: "START_CALL", Data: json.RawMessage(peerIDBytes)})
+		} else {
+			// This client is slot 0 and slot 1 was already here — tell slot 0 to start.
+			peerIDBytes, _ := json.Marshal(partnerID)
+			c.writeJSON(Message{Type: "START_CALL", Data: json.RawMessage(peerIDBytes)})
+		}
 	}
 
 	for {
@@ -63,18 +92,17 @@ func (c *Client) run() {
 			continue
 		}
 
-		clientConnsMu.RLock()
-		target := ClientConns[message.UserId]
-		clientConnsMu.RUnlock()
-		if target == nil {
-			log.Printf("Target user not found: %s", message.UserId)
+		mu.Lock()
+		partner := clients[1-c.slot]
+		mu.Unlock()
+		if partner == nil {
 			continue
 		}
 
 		out := Message{
 			Type:   message.Type,
 			Data:   message.Data,
-			UserId: c.UserId,
+			UserId: userID,
 		}
 		dataBytes, err := json.Marshal(out)
 		if err != nil {
@@ -82,8 +110,8 @@ func (c *Client) run() {
 			continue
 		}
 
-		if err := target.conn.WriteMessage(websocket.TextMessage, dataBytes); err != nil {
-			log.Printf("Forward error to %s: %v", message.UserId, err)
+		if err := partner.writeMessage(websocket.TextMessage, dataBytes); err != nil {
+			log.Printf("Forward error to %s: %v", fmt.Sprintf("user%d", 1-c.slot), err)
 		}
 	}
 }
@@ -101,7 +129,25 @@ func handleWSConnections(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go (&Client{UserId: generateNumericID(), conn: conn}).run()
+	mu.Lock()
+	if connectedCount >= 2 {
+		mu.Unlock()
+		conn.WriteJSON(Message{Type: "ERROR", Data: json.RawMessage(`"Server full"`)})
+		conn.Close()
+		return
+	}
+	slot := -1
+	for i, c := range clients {
+		if c == nil {
+			slot = i
+			clients[i] = &Client{slot: i, conn: conn}
+			connectedCount++
+			break
+		}
+	}
+	mu.Unlock()
+
+	go clients[slot].run()
 }
 
 func main() {

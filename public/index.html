@@ -1,42 +1,26 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Talkio - WebRTC</title>
-    <link href="index.css" rel="stylesheet" />
-  </head>
-  <body>
-    <div class="wrapper">
-      <header>
-        <nav>
-          <h1>Talkio</h1>
-        </nav>
-      </header>
 
-      <main>
-        <p>Your user ID <span class="userid"></span></p>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Talkio - WebRTC</title>
+  <link href="index.css" rel="stylesheet" />
+</head>
 
-        <div class="actions">
-          <input
-            type="text"
-            placeholder="Enter user ID to connect"
-            class="action__input"
-          />
-          <button type="button" class="action__button">Connect</button>
-        </div>
-      </main>
-
-      <div class="streams__wrapper">
-        <h2>Streams</h2>
-        <br />
-        <div class="streams">
-          <video autoplay playsinline class="stream__local"></video>
-          <video autoplay playsinline class="stream__remote"></video>
-        </div>
-      </div>
+<body>
+  <main class="wrapper">
+    <div class="streams">
+      <video hidden autoplay playsinline class="stream__local"></video>
+      <video hidden autoplay playsinline class="stream__remote"></video>
     </div>
+    <div class="error-message" hidden>
+      <h2>Server is full</h2>
+      <p>Maximum 2 users can connect at a time. Please try again later.</p>
+    </div>
+  </main>
 
-    <script src="index.js"></script>
-  </body>
+  <script src="index.js"></script>
+</body>
+
 </html>
